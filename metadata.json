@@ -1,0 +1,9 @@
+{
+  "name": "Briefy",
+  "description": "An AI-powered morning briefing app that provides weather, news, stocks (NEPSE), and motivational content with voice interaction.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
