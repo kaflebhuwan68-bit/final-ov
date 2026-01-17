@@ -62,19 +62,18 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('briefy_settings');
     if (saved) setSettings(JSON.parse(saved));
 
-    // Fetch initial data
-    fetchNepaliHolidays().then(setHolidays);
+    fetchNepaliHolidays().then(setHolidays).catch(e => console.error("Holidays failed", e));
   }, []);
 
   useEffect(() => {
     if (location) {
-      fetchCurrentWeather(location).then(w => w && setCurrentWeather(w));
+      fetchCurrentWeather(location).then(w => w && setCurrentWeather(w)).catch(e => console.error("Weather failed", e));
     }
   }, [location]);
 
   const stopAudio = () => {
     if (ttsSourceRef.current) {
-      ttsSourceRef.current.stop();
+      try { ttsSourceRef.current.stop(); } catch(e) {}
       ttsSourceRef.current = null;
     }
     setIsPlaying(false);
@@ -113,7 +112,7 @@ const App: React.FC = () => {
           sourcesRef.current.add(source);
         },
         () => {
-          sourcesRef.current.forEach(s => s.stop());
+          sourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
           sourcesRef.current.clear();
           nextStartTimeRef.current = 0;
         },
@@ -140,6 +139,7 @@ const App: React.FC = () => {
       source.connect(processor);
       processor.connect(audioCtxRef.current.destination);
     } catch (err) {
+      console.error("Voice interaction error:", err);
       setIsListening(false);
       setView(AppView.DASHBOARD);
     }
@@ -152,26 +152,30 @@ const App: React.FC = () => {
     }
 
     setAudioLoading(true);
-    const base64 = await speakText(text);
-    setAudioLoading(false);
-
-    if (base64) {
-      if (!outputAudioCtxRef.current) outputAudioCtxRef.current = new AudioContext({ sampleRate: 24000 });
-      const ctx = outputAudioCtxRef.current;
-      const buffer = await decodeAudioData(decode(base64), ctx, 24000, 1);
-      
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
-      source.onended = () => {
-        setIsPlaying(false);
-        ttsSourceRef.current = null;
-        setTimeout(() => startVoiceInteraction(), 300);
-      };
-      
-      ttsSourceRef.current = source;
-      source.start();
-      setIsPlaying(true);
+    try {
+      const base64 = await speakText(text);
+      if (base64) {
+        if (!outputAudioCtxRef.current) outputAudioCtxRef.current = new AudioContext({ sampleRate: 24000 });
+        const ctx = outputAudioCtxRef.current;
+        const buffer = await decodeAudioData(decode(base64), ctx, 24000, 1);
+        
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.onended = () => {
+          setIsPlaying(false);
+          ttsSourceRef.current = null;
+          setTimeout(() => startVoiceInteraction(), 500);
+        };
+        
+        ttsSourceRef.current = source;
+        source.start();
+        setIsPlaying(true);
+      }
+    } catch (e) {
+      console.error("Audio playback error:", e);
+    } finally {
+      setAudioLoading(false);
     }
   };
 
@@ -187,7 +191,8 @@ const App: React.FC = () => {
       );
       await playBriefingAudio(result.text);
     } catch (error) {
-      alert("ब्रिफिङमा समस्या आयो।");
+      console.error("Briefing error:", error);
+      alert("माफ गर्नुहोस्, ब्रिफिङ सुरु गर्न सकिएन। कृपया इन्टरनेट जडान वा API कुञ्जी जाँच गर्नुहोस्।");
     } finally {
       setLoading(false);
     }
@@ -219,7 +224,7 @@ const App: React.FC = () => {
   };
 
   const WeatherIcon = ({ condition }: { condition: string }) => {
-    const c = condition.toLowerCase();
+    const c = (condition || '').toLowerCase();
     if (c.includes('rain') || c.includes('पानी')) return <CloudRain size={24} className="text-blue-400" />;
     if (c.includes('cloud') || c.includes('बादल')) return <Cloud size={24} className="text-slate-400" />;
     return <Sun size={24} className="text-yellow-500" />;
@@ -354,12 +359,12 @@ const App: React.FC = () => {
                 <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-50">
                   {currentWeather ? <WeatherIcon condition={currentWeather.condition} /> : <Sun size={24} className="text-yellow-400 animate-spin-slow" />}
                 </div>
-                <div>
+                <div className="flex-1">
                   <div className="flex items-center gap-1 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
                     <MapPin size={10} /> {currentWeather?.city || 'खोज्दै...'}
                   </div>
-                  <div className="text-xl font-black text-slate-900 tracking-tight">
-                    {currentWeather ? `${currentWeather.temp}°C • ${currentWeather.condition}` : 'Loading...'}
+                  <div className="text-sm font-bold text-slate-900 tracking-tight line-clamp-2">
+                    {currentWeather ? currentWeather.condition : 'जानकारी लिदैछु...'}
                   </div>
                 </div>
               </div>
@@ -410,24 +415,22 @@ const App: React.FC = () => {
               <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-indigo-600/10 rounded-full blur-[80px]"></div>
             </div>
 
-            {/* Upcoming Holidays Section */}
             {holidays.length > 0 && (
               <div className="bg-white border border-slate-100 rounded-[2.5rem] p-6 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 px-1">
                   <Calendar size={16} className="text-blue-600" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">आगामी चाडपर्वहरू</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">चाडपर्व र बिदाहरू</span>
                 </div>
                 <div className="space-y-3">
                   {holidays.map((h, i) => (
                     <div key={i} className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl group hover:bg-blue-50/50 transition-colors">
                       <div className="flex-shrink-0 w-10 h-10 bg-white rounded-xl flex items-center justify-center font-black text-[10px] text-blue-600 border border-slate-100 shadow-sm">
-                        {h.date.split(' ')[0]}
+                        {h.date.split(' ')[0] || 'आज'}
                       </div>
                       <div className="flex-1">
                         <div className="text-xs font-black text-slate-800">{h.name}</div>
-                        <div className="text-[9px] font-bold text-slate-400 truncate max-w-[200px] uppercase tracking-wide">{h.description}</div>
+                        <div className="text-[9px] font-bold text-slate-400 line-clamp-2 uppercase tracking-wide">{h.description}</div>
                       </div>
-                      <div className="text-[9px] font-black text-slate-300 uppercase italic">{h.date.split(' ')[1]}</div>
                     </div>
                   ))}
                 </div>
@@ -435,17 +438,17 @@ const App: React.FC = () => {
             )}
 
             <div className="grid grid-cols-2 gap-4">
-              <button onClick={playBhajans} className="flex flex-col gap-4 p-6 rounded-[2.5rem] bg-white border border-slate-100 shadow-sm hover:border-emerald-100 transition-all group">
+              <button onClick={playBhajans} className="flex flex-col gap-4 p-6 rounded-[2.5rem] bg-white border border-slate-100 shadow-sm hover:border-emerald-100 transition-all group text-left">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Music size={24} />
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">भजन</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">भजन बजाउनुहोस्</span>
               </button>
-              <button onClick={() => window.open('https://youtube.com', '_blank')} className="flex flex-col gap-4 p-6 rounded-[2.5rem] bg-white border border-slate-100 shadow-sm hover:border-red-100 transition-all group">
+              <button onClick={() => window.open('https://youtube.com', '_blank')} className="flex flex-col gap-4 p-6 rounded-[2.5rem] bg-white border border-slate-100 shadow-sm hover:border-red-100 transition-all group text-left">
                 <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Youtube size={24} />
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">यूट्यूब</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">यूट्यूब खोल्नुहोस्</span>
               </button>
             </div>
 
@@ -482,16 +485,6 @@ const App: React.FC = () => {
           <span className="text-[9px] font-black uppercase tracking-widest">प्रोफाइल</span>
         </button>
       </nav>
-
-      <style>{`
-        @keyframes audio-bar {
-          0%, 100% { transform: scaleY(1); }
-          50% { transform: scaleY(2); }
-        }
-        .animate-audio-bar {
-          animation: audio-bar 0.8s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };

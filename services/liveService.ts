@@ -54,7 +54,7 @@ export const createLiveSession = async (
   onTranscription: (text: string, isUser: boolean) => void,
   onPlayBhajans: () => void
 ) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const sessionPromise = ai.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',

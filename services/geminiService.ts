@@ -1,32 +1,29 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-
 export const generateBriefing = async (
   name: string,
   location: { lat: number; lng: number } | null,
   newsSources: string[],
   language: string
 ) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `
-    तपाईंको नाम Briefy हो र तपाईं एउटा आत्मीय AI सहायक हुनुहुन्छ। हजुरको प्रयोगकर्ताको नाम ${name} हो। 
-    कृपया एउटा अत्यन्तै मिठो, सम्मानजनक र प्रेमपूर्ण बिहानी ब्रिफिङ तयार पार्नुहोस्।
+    तपाईंको नाम Briefy हो। हजुरको प्रयोगकर्ताको नाम ${name} हो। 
+    
+    कृपया ब्रिफिङ यसरी सुरु गर्नुहोस्: "नमस्ते ${name} हजुर, शुभ बिहानी! हजुरलाई धेरै धेरै माया अनि सम्झनाका साथ आजको दिन अत्यन्तै सुखद रहोस् भन्ने कामना गर्दछु।"
     
     ब्रिफिङमा अनिवार्य रूपमा यी कुराहरू समावेश गर्नुहोस्:
-    १. आजको नेपाली पात्रो (विक्रम संवत) अनुसार नेपालमा कुनै "सार्वजनिक बिदा" (Public Holiday) वा विशेष चाडपर्व छ कि छैन भनेर Google Search मार्फत पत्ता लगाउनुहोस् र छ भने त्यसको बारेमा सम्मानजनक जानकारी दिनुहोस्।
-    २. वर्तमान मौसम, सूर्योदय र सूर्यास्त समय (स्थान: ${location ? `अक्षांश ${location.lat}, देशान्तर ${location.lng}` : 'नेपाल'}) बारे जानकारी।
-    ३. नेप्से (NEPSE) को पछिल्लो अवस्था।
-    ४. ताजा समाचारहरू (${newsSources.join(', ')}) लाई बुँदागत (१, २, ३) रूपमा नभनी प्राकृतिक प्रवाहमा वाचन गर्नुहोस्।
-    ५. एउटा सानो उत्प्रेरणादायी भनाइ।
-    ६. ब्रिफिङको अन्तमा यो प्रश्न सोध्नुहोस्: "हजुरलाई थप केहि कुरा जान्न मन छ कि म हजुरको लागि भजन बजाउँ?"
+    १. आजको नेपाली पात्रो (विक्रम संवत) र आज नेपालमा कुनै "सार्वजनिक बिदा" वा विशेष उत्सव छ कि छैन (Google Search प्रयोग गर्नुहोस्)।
+    २. वर्तमान मौसम र तापक्रम (स्थान: ${location ? `अक्षांश ${location.lat}, देशान्तर ${location.lng}` : 'नेपाल'})।
+    ३. नेप्से (NEPSE) को पछिल्लो अपडेट।
+    ४. ताजा समाचारहरू (${newsSources.join(', ')}) लाई प्राकृतिक रूपमा वाचन गर्नुहोस्।
+    ५. एउटा सानो मीठो उत्प्रेरणादायी भनाइ।
+    ६. अन्त्यमा: "हजुरलाई थप केहि जान्न मन छ कि म हजुरको लागि भजन बजाउँ?"
 
     नियमहरू:
-    - भाषा: पूर्ण रूपमा नेपाली र अत्यन्तै आदरार्थी (तपाईं, हजुर)।
-    - शैली: यो अडियोको लागि हो, त्यसैले सुन्दा प्राकृतिक र आत्मीय लाग्नुपर्छ।
-    - विकासकर्ता: "भुवन काफ्ले (kaflebhuwan68@gmail.com)" को नाम अन्तमा एकदमै छोटो र मिठो गरी लिनुहोस्।
-    
-    ताजा र सही जानकारीको लागि Google Search को प्रयोग अनिवार्य छ।
+    - पूर्ण रूपमा नेपाली र अत्यन्तै आदरार्थी (हजुर) भाषा प्रयोग गर्नुहोस्।
+    - विकासकर्ताको नाम "भुवन काफ्ले" अन्तमा सम्मानका साथ लिनुहोस्।
   `;
 
   try {
@@ -35,7 +32,7 @@ export const generateBriefing = async (
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        temperature: 0.6,
+        temperature: 0.7,
       },
     });
 
@@ -50,8 +47,9 @@ export const generateBriefing = async (
 };
 
 export const fetchCurrentWeather = async (location: { lat: number; lng: number } | null) => {
-  const prompt = `Provide current weather for ${location ? `lat ${location.lat}, lng ${location.lng}` : 'Nepal'}. 
-  Return JSON: {temp, condition, city}. Translate strings to Nepali. Use Google Search.`;
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const prompt = `Provide current weather for ${location ? `lat ${location.lat}, lng ${location.lng}` : 'Kathmandu, Nepal'}. 
+  Give a very short summary in one sentence in Nepali (temp and condition).`;
 
   try {
     const response = await ai.models.generateContent({
@@ -59,20 +57,14 @@ export const fetchCurrentWeather = async (location: { lat: number; lng: number }
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            temp: { type: Type.NUMBER },
-            condition: { type: Type.STRING },
-            city: { type: Type.STRING },
-          },
-          required: ["temp", "condition", "city"],
-        },
       },
     });
 
-    return JSON.parse(response.text);
+    return { 
+      temp: 0, // Simplified as we'll show the text summary
+      condition: response.text, 
+      city: location ? "Your Location" : "Nepal" 
+    };
   } catch (error) {
     console.error("Weather Fetch Error:", error);
     return null;
@@ -80,9 +72,9 @@ export const fetchCurrentWeather = async (location: { lat: number; lng: number }
 };
 
 export const fetchNepaliHolidays = async () => {
-  const prompt = `Search for the next 3 upcoming major Nepali festivals and public holidays in the current Nepali calendar year (Bikram Sambat).
-  Return only JSON as an array of objects: { name: string, date: string, description: string }. 
-  Translate everything into Nepali. Date should be in BS (e.g., बैशाख १).`;
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const prompt = `Search for 3 upcoming major Nepali festivals and public holidays. 
+  Return a simple list with dates in Nepali.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -90,23 +82,11 @@ export const fetchNepaliHolidays = async () => {
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              date: { type: Type.STRING },
-              description: { type: Type.STRING },
-            },
-            required: ["name", "date", "description"],
-          },
-        },
       },
     });
 
-    return JSON.parse(response.text);
+    // Since we removed JSON mode for stability with grounding, we'll return the text
+    return [{ name: "Upcoming Highlights", date: "Today", description: response.text }];
   } catch (error) {
     console.error("Holidays Fetch Error:", error);
     return [];
@@ -114,10 +94,11 @@ export const fetchNepaliHolidays = async () => {
 };
 
 export const speakText = async (text: string) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `यो नेपाली पाठलाई अत्यन्तै मिठो, प्राकृतिक र सम्मानजनक स्वरमा वाचन गर्नुहोस्। समाचारहरू पढ्दा १, २, ३ नभनीकन धाराप्रवाह रूपमा पढ्नुहोस्: ${text}` }] }],
+      contents: [{ parts: [{ text: `यो नेपाली ब्रिफिङलाई आत्मीय स्वरमा वाचन गर्नुहोस्: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
