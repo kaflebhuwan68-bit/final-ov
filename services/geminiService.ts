@@ -15,7 +15,7 @@ export const generateBriefing = async (
     
     ब्रिफिङमा अनिवार्य रूपमा यी कुराहरू समावेश गर्नुहोस्:
     १. आजको नेपाली पात्रो (विक्रम संवत) र आज नेपालमा कुनै "सार्वजनिक बिदा" वा विशेष उत्सव छ कि छैन (Google Search प्रयोग गर्नुहोस्)।
-    २. वर्तमान मौसम र तापक्रम (स्थान: ${location ? `अक्षांश ${location.lat}, देशान्तर ${location.lng}` : 'नेपाल'})।
+    २. वर्तमान मौसम र तापक्रम (स्थान: ${location ? `अक्षांश ${location.lat}, देशान्तर ${location.lng}` : 'Kathmandu, Nepal'})।
     ३. नेप्से (NEPSE) को पछिल्लो अपडेट।
     ४. ताजा समाचारहरू (${newsSources.join(', ')}) लाई प्राकृतिक रूपमा वाचन गर्नुहोस्।
     ५. एउटा सानो मीठो उत्प्रेरणादायी भनाइ।
@@ -35,6 +35,10 @@ export const generateBriefing = async (
         temperature: 0.7,
       },
     });
+
+    if (!response || !response.text) {
+      throw new Error("Empty response from Gemini API");
+    }
 
     return {
       text: response.text,
@@ -61,9 +65,9 @@ export const fetchCurrentWeather = async (location: { lat: number; lng: number }
     });
 
     return { 
-      temp: 0, // Simplified as we'll show the text summary
-      condition: response.text, 
-      city: location ? "Your Location" : "Nepal" 
+      temp: 0, 
+      condition: response.text || "मौसमको जानकारी उपलब्ध छैन", 
+      city: location ? "हजुरको स्थान" : "नेपाल" 
     };
   } catch (error) {
     console.error("Weather Fetch Error:", error);
@@ -85,8 +89,7 @@ export const fetchNepaliHolidays = async () => {
       },
     });
 
-    // Since we removed JSON mode for stability with grounding, we'll return the text
-    return [{ name: "Upcoming Highlights", date: "Today", description: response.text }];
+    return [{ name: "आगामी बिदा/चाडपर्व", date: "हालको", description: response.text || "जानकारी उपलब्ध छैन" }];
   } catch (error) {
     console.error("Holidays Fetch Error:", error);
     return [];
@@ -98,7 +101,7 @@ export const speakText = async (text: string) => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `यो नेपाली ब्रिफिङलाई आत्मीय स्वरमा वाचन गर्नुहोस्: ${text}` }] }],
+      contents: [{ parts: [{ text: `यो नेपाली ब्रिफिङलाई आत्मीय र स्पष्ट स्वरमा वाचन गर्नुहोस्: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
