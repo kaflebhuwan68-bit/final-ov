@@ -9,6 +9,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@google/genai": "^1.37.0",
     "lucide-react": "^0.562.0",
@@ -24,5 +27,8 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
     "vite": "^6.0.7"
+  },
+  "overrides": {
+    "node-domexception": "1.0.0"
   }
 }
