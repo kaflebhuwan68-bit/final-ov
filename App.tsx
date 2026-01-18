@@ -32,7 +32,10 @@ import {
   Moon,
   Monitor,
   Info,
-  Clock
+  Clock,
+  Pause,
+  PlayCircle,
+  Square
 } from 'lucide-react';
 
 const LANGUAGES = [
@@ -79,6 +82,9 @@ const TRANSLATIONS: Record<string, any> = {
     home: 'गृह',
     profile: 'प्रोफाइल',
     listening: 'हजुरको कुरा सुन्दैछु...',
+    stop: 'रोक्नुहोस्',
+    pause: 'पज',
+    resume: 'चालु',
     loadingMsgs: ["मौसमको जानकारी लिँदैछौँ...", "नेप्सेको ताजा अपडेट खोज्दैछौँ...", "मुख्य समाचारहरू संकलन गर्दैछौँ...", "हजुरको लागि ब्रिफिङ तयार पार्दैछौँ...", "मीठो आवाज भर्दैछौँ..."]
   },
   en: {
@@ -110,6 +116,9 @@ const TRANSLATIONS: Record<string, any> = {
     home: 'Home',
     profile: 'Profile',
     listening: 'Listening...',
+    stop: 'Stop',
+    pause: 'Pause',
+    resume: 'Resume',
     loadingMsgs: ["Fetching weather...", "Checking NEPSE...", "Gathering headlines...", "Crafting briefing...", "Polishing audio..."]
   },
   hi: {
@@ -141,6 +150,9 @@ const TRANSLATIONS: Record<string, any> = {
     home: 'होम',
     profile: 'प्रोफ़ाइल',
     listening: 'सुन रहा हूँ...',
+    stop: 'रोकें',
+    pause: 'विराम',
+    resume: 'जारी रखें',
     loadingMsgs: ["मौसम की जानकारी...", "स्टॉक अपडेट...", "समाचार सुर्खियां...", "ब्रीफिंग तैयार...", "ऑडियो पॉलिश..."]
   },
   bho: {
@@ -172,6 +184,9 @@ const TRANSLATIONS: Record<string, any> = {
     home: 'होम',
     profile: 'प्रोफाइल',
     listening: 'सुनत बानी...',
+    stop: 'बन्द करीं',
+    pause: 'रुकीं',
+    resume: 'चालू करीं',
     loadingMsgs: ["मौसम के जानकारी...", "स्टॉक अपडेट...", "खबर के सुर्खियां...", "ब्रीफिंग तइयार...", "ऑडियो पॉलिश..."]
   },
   new: {
@@ -203,6 +218,9 @@ const TRANSLATIONS: Record<string, any> = {
     home: 'छेँ',
     profile: 'प्रोफाइल',
     listening: 'न्यनाच्वना...',
+    stop: 'बन्द याये',
+    pause: 'छिनं दिकी',
+    resume: 'हाकनं न्ह्याकी',
     loadingMsgs: ["मौसमया जानकारी...", "स्टॉक अपडेट...", "बुखँया सुर्खीत...", "ब्रिफिङ तयार...", "सः मिलाच्वना..."]
   }
 };
@@ -233,6 +251,7 @@ const App: React.FC = () => {
   const [holidays, setHolidays] = useState<{ name: string, date: string, description: string }[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   
   const audioCtxRef = useRef<AudioContext | null>(null);
   const outputAudioCtxRef = useRef<AudioContext | null>(null);
@@ -298,12 +317,28 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [loading]);
 
-  const stopAudio = () => {
+  const stopAudio = async () => {
+    if (outputAudioCtxRef.current && isPaused) {
+      await outputAudioCtxRef.current.resume();
+    }
+    
     if (ttsSourceRef.current) {
       try { ttsSourceRef.current.stop(); } catch(e) {}
       ttsSourceRef.current = null;
     }
     setIsPlaying(false);
+    setIsPaused(false);
+  };
+
+  const handleTogglePause = async () => {
+    if (!outputAudioCtxRef.current) return;
+    if (isPaused) {
+      await outputAudioCtxRef.current.resume();
+      setIsPaused(false);
+    } else {
+      await outputAudioCtxRef.current.suspend();
+      setIsPaused(true);
+    }
   };
 
   const playBhajans = () => {
@@ -314,7 +349,7 @@ const App: React.FC = () => {
 
   const startVoiceInteraction = async () => {
     if (isListening) return;
-    stopAudio();
+    await stopAudio();
     setIsListening(true);
     setView(AppView.VOICE);
     setTranscriptions([]);
@@ -373,17 +408,14 @@ const App: React.FC = () => {
   };
 
   const playBriefingAudio = async (text: string) => {
-    if (isPlaying) {
-      stopAudio();
-      return;
-    }
-
     setAudioLoading(true);
+    setIsPaused(false);
     try {
       const base64 = await speakText(text, settings.language);
       if (base64) {
         if (!outputAudioCtxRef.current) outputAudioCtxRef.current = new AudioContext({ sampleRate: 24000 });
         const ctx = outputAudioCtxRef.current;
+        if (ctx.state === 'suspended') await ctx.resume();
         const buffer = await decodeAudioData(decode(base64), ctx, 24000, 1);
         
         const source = ctx.createBufferSource();
@@ -391,6 +423,7 @@ const App: React.FC = () => {
         source.connect(ctx.destination);
         source.onended = () => {
           setIsPlaying(false);
+          setIsPaused(false);
           ttsSourceRef.current = null;
           setTimeout(() => startVoiceInteraction(), 500);
         };
@@ -408,7 +441,7 @@ const App: React.FC = () => {
 
   const handleGenerateBriefing = async () => {
     setLoading(true);
-    stopAudio();
+    await stopAudio();
     try {
       const result = await generateBriefing(
         settings.name,
@@ -678,12 +711,33 @@ const App: React.FC = () => {
                     <span className="text-[9px] font-black text-blue-400 dark:text-blue-300 uppercase tracking-[0.2em]">{t.loadingMsgs[loadingMessageIndex]}</span>
                   </div>
                 )}
-                <button 
-                  onClick={handleGenerateBriefing} disabled={loading || isPlaying || audioLoading}
-                  className="w-full py-6 bg-blue-600 dark:bg-blue-50 text-white dark:text-blue-900 rounded-[2rem] font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 shadow-2xl shadow-blue-900/50 relative overflow-hidden"
-                >
-                  {loading ? <Loader2 size={24} className="animate-spin" /> : isPlaying ? <><Waves size={24} className="animate-bounce" />{t.speaking}</> : audioLoading ? <><Loader2 size={24} className="animate-spin" />{t.preparingVoice}</> : <><Play size={22} fill="currentColor" />{t.startBriefing}</>}
-                </button>
+                
+                {isPlaying || audioLoading ? (
+                  <div className="flex flex-col gap-3 w-full animate-in fade-in zoom-in-95 duration-300">
+                    {isPlaying && (
+                      <button 
+                        onClick={handleTogglePause}
+                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg ${isPaused ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white'}`}
+                      >
+                        {isPaused ? <><PlayCircle size={20} />{t.resume}</> : <><Pause size={20} />{t.pause}</>}
+                      </button>
+                    )}
+                    <button 
+                      onClick={stopAudio}
+                      className="w-full py-5 bg-red-600 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 shadow-2xl shadow-red-900/50"
+                    >
+                      {audioLoading ? <Loader2 size={24} className="animate-spin" /> : <><Square size={20} fill="currentColor" />{t.stop}</>}
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={handleGenerateBriefing}
+                    disabled={loading}
+                    className="w-full py-6 bg-blue-600 dark:bg-blue-50 text-white dark:text-blue-900 rounded-[2rem] font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 shadow-2xl shadow-blue-900/50 relative overflow-hidden"
+                  >
+                    {loading ? <Loader2 size={24} className="animate-spin" /> : <><Play size={22} fill="currentColor" />{t.startBriefing}</>}
+                  </button>
+                )}
               </div>
               <div className="absolute -right-20 -top-20 w-64 h-64 bg-blue-600/20 rounded-full blur-[80px] animate-pulse"></div>
             </div>
