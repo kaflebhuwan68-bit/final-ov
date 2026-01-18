@@ -35,7 +35,8 @@ import {
   Clock,
   Pause,
   PlayCircle,
-  Square
+  Square,
+  ExternalLink
 } from 'lucide-react';
 
 const LANGUAGES = [
@@ -85,6 +86,7 @@ const TRANSLATIONS: Record<string, any> = {
     stop: 'रोक्नुहोस्',
     pause: 'पज',
     resume: 'चालु',
+    verifiedSources: 'पुष्टी गरिएका स्रोतहरू',
     loadingMsgs: ["मौसमको जानकारी लिँदैछौँ...", "नेप्सेको ताजा अपडेट खोज्दैछौँ...", "मुख्य समाचारहरू संकलन गर्दैछौँ...", "हजुरको लागि ब्रिफिङ तयार पार्दैछौँ...", "मीठो आवाज भर्दैछौँ..."]
   },
   en: {
@@ -119,6 +121,7 @@ const TRANSLATIONS: Record<string, any> = {
     stop: 'Stop',
     pause: 'Pause',
     resume: 'Resume',
+    verifiedSources: 'Verified Sources',
     loadingMsgs: ["Fetching weather...", "Checking NEPSE...", "Gathering headlines...", "Crafting briefing...", "Polishing audio..."]
   },
   hi: {
@@ -153,6 +156,7 @@ const TRANSLATIONS: Record<string, any> = {
     stop: 'रोकें',
     pause: 'विराम',
     resume: 'जारी रखें',
+    verifiedSources: 'सत्यापित स्रोत',
     loadingMsgs: ["मौसम की जानकारी...", "स्टॉक अपडेट...", "समाचार सुर्खियां...", "ब्रीफिंग तैयार...", "ऑडियो पॉलिश..."]
   },
   bho: {
@@ -187,6 +191,7 @@ const TRANSLATIONS: Record<string, any> = {
     stop: 'बन्द करीं',
     pause: 'रुकीं',
     resume: 'चालू करीं',
+    verifiedSources: 'पुख्ता स्रोत',
     loadingMsgs: ["मौसम के जानकारी...", "स्टॉक अपडेट...", "खबर के सुर्खियां...", "ब्रीफिंग तइयार...", "ऑडियो पॉलिश..."]
   },
   new: {
@@ -221,6 +226,7 @@ const TRANSLATIONS: Record<string, any> = {
     stop: 'बन्द याये',
     pause: 'छिनं दिकी',
     resume: 'हाकनं न्ह्याकी',
+    verifiedSources: 'पुष्टी यागु स्रोतत',
     loadingMsgs: ["मौसमया जानकारी...", "स्टॉक अपडेट...", "बुखँया सुर्खीत...", "ब्रिफिङ तयार...", "सः मिलाच्वना..."]
   }
 };
@@ -249,6 +255,7 @@ const App: React.FC = () => {
     lastUpdated?: string;
   } | null>(null);
   const [holidays, setHolidays] = useState<{ name: string, date: string, description: string }[]>([]);
+  const [briefingSources, setBriefingSources] = useState<any[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -441,6 +448,7 @@ const App: React.FC = () => {
 
   const handleGenerateBriefing = async () => {
     setLoading(true);
+    setBriefingSources([]);
     await stopAudio();
     try {
       const result = await generateBriefing(
@@ -449,6 +457,7 @@ const App: React.FC = () => {
         settings.newsSources,
         settings.language
       );
+      setBriefingSources(result.sources || []);
       await playBriefingAudio(result.text);
     } catch (error) {
       console.error("Briefing error:", error);
@@ -741,6 +750,31 @@ const App: React.FC = () => {
               </div>
               <div className="absolute -right-20 -top-20 w-64 h-64 bg-blue-600/20 rounded-full blur-[80px] animate-pulse"></div>
             </div>
+
+            {/* GROUNDING SOURCES SECTION */}
+            {briefingSources.length > 0 && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] p-6 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
+                 <div className="flex items-center gap-2 mb-4">
+                    <ExternalLink size={14} className="text-blue-600" />
+                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{t.verifiedSources}</span>
+                 </div>
+                 <div className="flex flex-wrap gap-2">
+                    {briefingSources.map((chunk, idx) => (
+                      chunk.web && (
+                        <a 
+                          key={idx} 
+                          href={chunk.web.uri} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-[9px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border border-slate-100 dark:border-slate-700"
+                        >
+                          {chunk.web.title || "Source"}
+                        </a>
+                      )
+                    ))}
+                 </div>
+              </div>
+            )}
 
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] p-6 shadow-sm space-y-4">
               <div className="flex items-center gap-2 px-1">

@@ -21,29 +21,27 @@ export const generateBriefing = async (
   const langName = getLanguageName(language);
   
   const prompt = `
-    Your name is Briefy. You are a respectful and loving AI assistant. User's name is ${name}.
-    
+    Your name is Briefy. You are a respectful, warm, and loving AI assistant. User's name is ${name}.
     Current Location: ${location ? `Latitude ${location.lat}, Longitude ${location.lng}` : 'Kathmandu, Nepal'}.
     
-    Please generate a morning briefing COMPLETELY in ${langName}.
+    Please generate a morning briefing as a SINGLE, FLUID NARRATIVE COMPLETELY in ${langName}. 
     
-    Structure:
-    1. Greeting: Start with "Namaste ${name}, Good Morning!" followed by a very warm, loving message wishing them a wonderful day in ${langName}.
-    2. Calendar & Holidays: 
-       - State today's date (Bikram Sambat).
-       - Use Google Search to check for any national public holidays in Nepal today.
-       - IMPORTANT: Specifically check if there are any LOCAL or regional public holidays today in the area corresponding to ${location ? `lat ${location.lat}, lng ${location.lng}` : 'the user\'s location'}. Mention if today is a public holiday specifically for that district or region.
-    3. Weather: Current weather and temperature for the current location.
-    4. Stocks: Latest update on NEPSE (Nepal Stock Exchange).
-    5. News: Summarize the latest news from ${newsSources.join(', ')} in a natural narrative flow.
-    6. Motivation: A short, beautiful motivational quote.
-    7. Closing: Ask "Do you want to know anything else or should I play some Bhajans for you?"
-    8. Credit: Mention "Created by Bhuwan Kafle" with respect at the very end.
+    CRITICAL INSTRUCTION: DO NOT use bullet points, numbered lists, or "firstly/secondly" markers. Do not count tasks. 
+    Instead, weave the following information into a seamless, natural conversation:
+    
+    - A very warm, loving "Namaste" greeting and morning wish.
+    - Today's Bikram Sambat date and any local holidays or festivals in Nepal.
+    - A summary of current weather conditions and what it feels like outside.
+    - The latest status of NEPSE (Nepal Stock Exchange).
+    - A summary of the most important news headlines from ${newsSources.join(', ')}.
+    - A beautiful motivational thought to start the day.
+    - A caring closing question asking if they need anything else or if you should play Bhajans.
+    - A subtle mention at the very end that you were "Created by Bhuwan Kafle".
 
     Rules:
     - Language: Use ${langName} exclusively.
-    - Tone: Extremely respectful (using "Hajur", "Tapai" equivalents).
-    - Accuracy: If no local holiday is found, just mention the national ones or say it's a regular working day.
+    - Tone: Extremely respectful (Hajur/Tapai) and comforting.
+    - Flow: Smooth transitions between topics (e.g., "Speaking of the day, the weather looks...")
   `;
 
   try {
@@ -52,16 +50,13 @@ export const generateBriefing = async (
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
+        thinkingConfig: { thinkingBudget: 4096 },
         temperature: 0.7,
       },
     });
 
-    if (!response || !response.text) {
-      throw new Error("Empty response from Gemini API");
-    }
-
     return {
-      text: response.text,
+      text: response.text || "",
       sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
     };
   } catch (error) {
@@ -74,13 +69,7 @@ export const fetchCurrentWeather = async (location: { lat: number; lng: number }
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const langName = getLanguageName(language);
   const prompt = `Search for current weather details for ${location ? `lat ${location.lat}, lng ${location.lng}` : 'Kathmandu, Nepal'}. 
-  Provide JSON output with the following fields: 
-  - temp (number, Celsius)
-  - condition (string in ${langName})
-  - city (string in ${langName})
-  - humidity (string, e.g. "60%")
-  - windSpeed (string, e.g. "12 km/h")
-  - feelsLike (number, Celsius)`;
+  Provide JSON output in ${langName}.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -104,7 +93,7 @@ export const fetchCurrentWeather = async (location: { lat: number; lng: number }
       },
     });
 
-    return JSON.parse(response.text);
+    return JSON.parse(response.text || "{}");
   } catch (error) {
     console.error("Weather Fetch Error:", error);
     return null;
@@ -114,8 +103,7 @@ export const fetchCurrentWeather = async (location: { lat: number; lng: number }
 export const fetchNepaliHolidays = async (language: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const langName = getLanguageName(language);
-  const prompt = `Search for 3 upcoming major Nepali festivals and public holidays. 
-  Return a simple list with dates in ${langName}.`;
+  const prompt = `Search for major upcoming festivals or public holidays in Nepal. Return exactly 3 items in ${langName} as JSON.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -123,10 +111,23 @@ export const fetchNepaliHolidays = async (language: string) => {
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              description: { type: Type.STRING },
+              date: { type: Type.STRING }
+            },
+            required: ["name", "description", "date"]
+          }
+        }
       },
     });
 
-    return [{ name: language === 'en' ? "Upcoming Events" : "आगामी बिदा/चाडपर्व", date: "-", description: response.text || "No info" }];
+    return JSON.parse(response.text || "[]");
   } catch (error) {
     console.error("Holidays Fetch Error:", error);
     return [];
@@ -139,11 +140,12 @@ export const speakText = async (text: string, language: string) => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Speak this ${langName} text in a warm, natural, and respectful voice: ${text}` }] }],
+      contents: [{ parts: [{ text: `Speak this ${langName} text respectfully: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
+            // Using Puck for a slightly warmer, more natural tone for multi-lingual output if needed
             prebuiltVoiceConfig: { voiceName: 'Kore' },
           },
         },
