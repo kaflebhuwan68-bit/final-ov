@@ -10,9 +10,10 @@ export interface BriefingData {
 
 export interface UserSettings {
   name: string;
-  language: 'ne' | 'en' | 'hi';
+  language: 'ne' | 'en' | 'hi' | 'bho' | 'new';
   newsSources: string[];
   autoPlayAudio: boolean;
+  theme: 'day' | 'night' | 'system';
 }
 
 export enum AppView {
