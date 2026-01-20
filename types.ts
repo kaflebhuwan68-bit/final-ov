@@ -14,6 +14,8 @@ export interface UserSettings {
   newsSources: string[];
   autoPlayAudio: boolean;
   theme: 'day' | 'night' | 'system';
+  autoListen: boolean;
+  autoStartBriefing: boolean;
 }
 
 export enum AppView {
